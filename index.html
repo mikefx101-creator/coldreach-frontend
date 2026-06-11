@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ColdReach</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #1a1d2e; } ::-webkit-scrollbar-thumb { background: #3b4a6b; border-radius: 3px; }
+    .sidebar { position: fixed; top: 0; left: 0; width: 220px; height: 100vh; background: #141721; border-right: 1px solid #1e2535; display: flex; flex-direction: column; padding: 24px 0; z-index: 100; }
+    .logo { padding: 0 20px 24px; font-size: 20px; font-weight: 700; color: #60a5fa; letter-spacing: -0.5px; border-bottom: 1px solid #1e2535; }
+    .logo span { color: #93c5fd; font-size: 12px; display: block; font-weight: 400; margin-top: 2px; }
+    .nav { padding: 16px 0; flex: 1; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 20px; cursor: pointer; color: #94a3b8; font-size: 14px; transition: all 0.15s; border-left: 3px solid transparent; }
+    .nav-item:hover { background: #1a1d2e; color: #e2e8f0; }
+    .nav-item.active { background: #1a2744; color: #60a5fa; border-left-color: #60a5fa; }
+    .nav-icon { width: 18px; text-align: center; font-size: 16px; }
+    .main { margin-left: 220px; padding: 32px; min-height: 100vh; }
+    .page-header { margin-bottom: 28px; }
+    .page-title { font-size: 22px; font-weight: 700; color: #f1f5f9; }
+    .page-sub { color: #64748b; font-size: 13px; margin-top: 4px; }
+    .card { background: #141721; border: 1px solid #1e2535; border-radius: 12px; padding: 20px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: #141721; border: 1px solid #1e2535; border-radius: 12px; padding: 20px; }
+    .stat-label { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #f1f5f9; margin-top: 6px; }
+    .stat-sub { color: #475569; font-size: 12px; margin-top: 4px; }
+    .btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #1e2535; color: #94a3b8; border: 1px solid #2d3748; }
+    .btn-secondary:hover { background: #252d3d; color: #e2e8f0; }
+    .btn-danger { background: #7f1d1d; color: #fca5a5; }
+    .btn-danger:hover { background: #991b1b; }
+    .btn-success { background: #14532d; color: #86efac; }
+    .btn-success:hover { background: #166534; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    input, select, textarea { background: #0f1117; border: 1px solid #1e2535; border-radius: 8px; color: #e2e8f0; padding: 10px 14px; font-size: 13px; width: 100%; outline: none; font-family: inherit; }
+    input:focus, select:focus, textarea:focus { border-color: #2563eb; }
+    textarea { resize: vertical; min-height: 100px; }
+    label { display: block; color: #94a3b8; font-size: 12px; margin-bottom: 6px; font-weight: 500; }
+    .form-group { margin-bottom: 16px; }
+    .row { display: flex; gap: 16px; }
+    .row > * { flex: 1; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 10px 14px; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #1e2535; }
+    td { padding: 12px 14px; font-size: 13px; color: #cbd5e1; border-bottom: 1px solid #0f1117; }
+    tr:hover td { background: #141721; }
+    .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-blue { background: #1e3a5f; color: #60a5fa; }
+    .badge-green { background: #14532d; color: #86efac; }
+    .badge-yellow { background: #422006; color: #fbbf24; }
+    .badge-red { background: #450a0a; color: #f87171; }
+    .badge-gray { background: #1e2535; color: #64748b; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .modal { background: #141721; border: 1px solid #1e2535; border-radius: 16px; padding: 28px; width: 100%; max-width: 580px; max-height: 85vh; overflow-y: auto; }
+    .modal-title { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 20px; }
+    .flex { display: flex; } .items-center { align-items: center; } .justify-between { justify-content: space-between; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
+    .mb-4 { margin-bottom: 16px; } .mb-6 { margin-bottom: 24px; }
+    .text-sm { font-size: 13px; } .text-xs { font-size: 11px; } .text-muted { color: #64748b; }
+    .campaign-card { background: #141721; border: 1px solid #1e2535; border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+    .campaign-card:hover { border-color: #2d3748; }
+    .step-block { background: #0f1117; border: 1px solid #1e2535; border-radius: 8px; padding: 14px; margin-bottom: 10px; position: relative; }
+    .step-num { background: #2563eb; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-bottom: 10px; }
+    .tabs { display: flex; gap: 4px; background: #0f1117; border-radius: 10px; padding: 4px; margin-bottom: 24px; border: 1px solid #1e2535; }
+    .tab { flex: 1; text-align: center; padding: 8px; border-radius: 7px; cursor: pointer; color: #64748b; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+    .tab.active { background: #1a2744; color: #60a5fa; }
+    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-title { font-size: 16px; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    .alert-error { background: #450a0a; border: 1px solid #7f1d1d; color: #fca5a5; }
+    .alert-success { background: #052e16; border: 1px solid #14532d; color: #86efac; }
+    .alert-info { background: #0c1a33; border: 1px solid #1e3a5f; color: #93c5fd; }
+    @media (max-width: 768px) {
+      .sidebar { width: 60px; } .logo span, .nav-item span { display: none; }
+      .main { margin-left: 60px; padding: 16px; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const API_URL = "https://precious-warmth-coldreach.railway.app";
+
+const { useState, useEffect, useCallback } = React;
+
+// ─── API helpers ────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API_URL + path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
+}
+
+// ─── Toast ───────────────────────────────────────────────
+function Toast({ msg, type, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, []);
+  return (
+    <div style={{ position:"fixed", bottom:24, right:24, zIndex:9999, minWidth:280 }}>
+      <div className={`alert alert-${type}`} style={{ boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+        {msg}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard ───────────────────────────────────────────
+function Dashboard() {
+  const [stats, setStats] = useState({ campaigns:0, leads:0, sent:0, replies:0, accounts:0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch("/api/campaigns").catch(() => []),
+      apiFetch("/api/leads").catch(() => []),
+      apiFetch("/api/accounts").catch(() => []),
+    ]).then(([camps, leads, accs]) => {
+      const allLeads = Array.isArray(leads) ? leads : [];
+      setStats({
+        campaigns: Array.isArray(camps) ? camps.length : 0,
+        leads: allLeads.length,
+        sent: allLeads.filter(l => l.status === "sent" || l.status === "replied").length,
+        replies: allLeads.filter(l => l.status === "replied").length,
+        accounts: Array.isArray(accs) ? accs.length : 0,
+      });
+      setLoading(false);
+    });
+  }, []);
+
+  const rate = stats.sent > 0 ? ((stats.replies / stats.sent) * 100).toFixed(1) : "0.0";
+
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-title">Dashboard</div>
+        <div className="page-sub">Your cold email automation overview</div>
+      </div>
+      <div className="stat-grid">
+        {[
+          { label:"Campaigns", value: loading ? "—" : stats.campaigns, sub:"Total created", icon:"📋" },
+          { label:"Total Leads", value: loading ? "—" : stats.leads, sub:"In all campaigns", icon:"👥" },
+          { label:"Emails Sent", value: loading ? "—" : stats.sent, sub:"Across all sequences", icon:"📤" },
+          { label:"Replies", value: loading ? "—" : stats.replies, sub:`${rate}% reply rate`, icon:"💬" },
+        ].map(s => (
+          <div className="stat-card" key={s.label}>
+            <div className="stat-label">{s.icon} {s.label}</div>
+            <div className="stat-value">{s.value}</div>
+            <div className="stat-sub">{s.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <div className="flex items-center gap-2 mb-4">
+          <div style={{ width:10, height:10, borderRadius:"50%", background: "#22c55e" }}></div>
+          <span style={{ color:"#86efac", fontSize:13, fontWeight:600 }}>System Status</span>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          {[
+            { label:"Railway Backend", status:"Live" },
+            { label:"Supabase DB", status:"Connected" },
+            { label:"Daily Scheduler", status:"9 AM IST" },
+            { label:"Gmail Accounts", status: loading ? "—" : `${stats.accounts} connected` },
+          ].map(s => (
+            <div key={s.label} className="flex justify-between items-center" style={{ background:"#0f1117", padding:"12px 16px", borderRadius:8, border:"1px solid #1e2535" }}>
+              <span className="text-sm text-muted">{s.label}</span>
+              <span className="badge badge-green">{s.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Campaign Modal ───────────────────────────────────────
+function CampaignModal({ onClose, onSave, existing }) {
+  const blank = { subject:"", body:"", delay_days: 0 };
+  const [name, setName] = useState(existing?.name || "");
+  const [steps, setSteps] = useState(existing?.steps || [{ ...blank }]);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const addStep = () => setSteps([...steps, { ...blank, delay_days: 2 }]);
+  const removeStep = i => setSteps(steps.filter((_, idx) => idx !== i));
+  const updateStep = (i, field, val) => {
+    const s = [...steps]; s[i] = { ...s[i], [field]: val }; setSteps(s);
+  };
+
+  async function save() {
+    if (!name.trim()) { setErr("Campaign name is required"); return; }
+    if (steps.some(s => !s.subject.trim() || !s.body.trim())) { setErr("All steps need subject and body"); return; }
+    setSaving(true); setErr("");
+    try {
+      const method = existing ? "PUT" : "POST";
+      const url = existing ? `/api/campaigns/${existing.id}` : "/api/campaigns";
+      await apiFetch(url, { method, body: JSON.stringify({ name: name.trim(), steps }) });
+      onSave();
+    } catch (e) { setErr("Failed to save. Check backend connection."); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-title">{existing ? "Edit Campaign" : "New Campaign"}</div>
+        {err && <div className="alert alert-error">{err}</div>}
+        <div className="form-group">
+          <label>Campaign Name</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Web Design Outreach — US Agencies" />
+        </div>
+        <div style={{ marginBottom:8, color:"#94a3b8", fontSize:13, fontWeight:600 }}>Email Sequence Steps</div>
+        {steps.map((step, i) => (
+          <div className="step-block" key={i}>
+            <div className="flex justify-between items-center mb-4">
+              <div className="step-num">{i + 1}</div>
+              {steps.length > 1 && (
+                <button className="btn btn-danger btn-sm" onClick={() => removeStep(i)}>Remove</button>
+              )}
+            </div>
+            {i > 0 && (
+              <div className="form-group">
+                <label>Send after (days from previous step)</label>
+                <input type="number" min="1" value={step.delay_days} onChange={e => updateStep(i, "delay_days", +e.target.value)} />
+              </div>
+            )}
+            <div className="form-group">
+              <label>Subject</label>
+              <input value={step.subject} onChange={e => updateStep(i, "subject", e.target.value)} placeholder="Quick question, {{firstName}}" />
+            </div>
+            <div className="form-group">
+              <label>Body — use {"{{firstName}}"}, {"{{company}}"}</label>
+              <textarea rows={5} value={step.body} onChange={e => updateStep(i, "body", e.target.value)} placeholder={`Hi {{firstName}},\n\nI noticed that {{company}} might benefit from...\n\nBest,\nMohammed`} />
+            </div>
+          </div>
+        ))}
+        <button className="btn btn-secondary" onClick={addStep} style={{ width:"100%", marginBottom:20 }}>+ Add Follow-up Step</button>
+        <div className="flex gap-3">
+          <button className="btn btn-secondary" onClick={onClose} style={{ flex:1 }}>Cancel</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving} style={{ flex:1 }}>{saving ? "Saving..." : "Save Campaign"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Lead Modal ───────────────────────────────────────────
+function LeadModal({ campaignId, onClose, onSave }) {
+  const [tab, setTab] = useState("manual");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [preview, setPreview] = useState([]);
+
+  function parseCSV(text) {
+    const lines = text.trim().split("\n");
+    const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+    return lines.slice(1).map(line => {
+      const vals = line.split(",").map(v => v.trim());
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = vals[i] || "");
+      return { firstName: obj["firstname"] || obj["first_name"] || obj["name"] || "", lastName: obj["lastname"] || obj["last_name"] || "", email: obj["email"] || "", company: obj["company"] || "" };
+    }).filter(l => l.email);
+  }
+
+  useEffect(() => { if (csvText) setPreview(parseCSV(csvText).slice(0, 3)); }, [csvText]);
+
+  async function saveManual() {
+    if (!email.trim()) { setErr("Email required"); return; }
+    setSaving(true); setErr("");
+    try {
+      await apiFetch("/api/leads", { method:"POST", body: JSON.stringify({ campaign_id: campaignId, first_name: firstName, last_name: lastName, email, company }) });
+      onSave();
+    } catch { setErr("Failed to add lead"); }
+    setSaving(false);
+  }
+
+  async function saveCSV() {
+    const leads = parseCSV(csvText);
+    if (!leads.length) { setErr("No valid leads found. Make sure CSV has an 'email' column."); return; }
+    setSaving(true); setErr("");
+    try {
+      for (const l of leads) {
+        await apiFetch("/api/leads", { method:"POST", body: JSON.stringify({ campaign_id: campaignId, first_name: l.firstName, last_name: l.lastName, email: l.email, company: l.company }) });
+      }
+      onSave();
+    } catch { setErr("Failed to import some leads"); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-title">Add Leads</div>
+        {err && <div className="alert alert-error">{err}</div>}
+        <div className="tabs">
+          <div className={`tab ${tab==="manual"?"active":""}`} onClick={() => setTab("manual")}>Manual</div>
+          <div className={`tab ${tab==="csv"?"active":""}`} onClick={() => setTab("csv")}>CSV Import</div>
+        </div>
+        {tab === "manual" ? (
+          <>
+            <div className="row">
+              <div className="form-group"><label>First Name</label><input value={firstName} onChange={e=>setFirstName(e.target.value)} placeholder="John" /></div>
+              <div className="form-group"><label>Last Name</label><input value={lastName} onChange={e=>setLastName(e.target.value)} placeholder="Smith" /></div>
+            </div>
+            <div className="form-group"><label>Email *</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="john@company.com" /></div>
+            <div className="form-group"><label>Company</label><input value={company} onChange={e=>setCompany(e.target.value)} placeholder="Acme Inc" /></div>
+            <div className="flex gap-3">
+              <button className="btn btn-secondary" onClick={onClose} style={{ flex:1 }}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveManual} disabled={saving} style={{ flex:1 }}>{saving?"Adding...":"Add Lead"}</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="alert alert-info">CSV format: <strong>email, firstName, lastName, company</strong> (header row required)</div>
+            <div className="form-group"><label>Paste CSV content</label><textarea rows={8} value={csvText} onChange={e=>setCsvText(e.target.value)} placeholder={`email,firstName,lastName,company\njohn@acme.com,John,Smith,Acme Inc\njane@corp.com,Jane,Doe,Corp LLC`} /></div>
+            {preview.length > 0 && (
+              <div className="alert alert-success">{preview.length === 1 ? `1 lead` : `${preview.length}+ leads`} detected — e.g. {preview[0].email}</div>
+            )}
+            <div className="flex gap-3">
+              <button className="btn btn-secondary" onClick={onClose} style={{ flex:1 }}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveCSV} disabled={saving} style={{ flex:1 }}>{saving?"Importing...":"Import Leads"}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Campaigns Page ───────────────────────────────────────
+function Campaigns({ toast }) {
+  const [campaigns, setCampaigns] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [leads, setLeads] = useState([]);
+  const [showCamp, setShowCamp] = useState(false);
+  const [showLead, setShowLead] = useState(false);
+  const [editCamp, setEditCamp] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadCampaigns = useCallback(async () => {
+    try { const d = await apiFetch("/api/campaigns"); setCampaigns(Array.isArray(d) ? d : []); } catch { toast("Failed to load campaigns", "error"); }
+    setLoading(false);
+  }, []);
+
+  const loadLeads = useCallback(async (campId) => {
+    try { const d = await apiFetch(`/api/leads?campaign_id=${campId}`); setLeads(Array.isArray(d) ? d : []); } catch { setLeads([]); }
+  }, []);
+
+  useEffect(() => { loadCampaigns(); }, []);
+  useEffect(() => { if (selected) loadLeads(selected.id); }, [selected]);
+
+  async function deleteCampaign(id) {
+    if (!confirm("Delete this campaign and all its leads?")) return;
+    try { await apiFetch(`/api/campaigns/${id}`, { method:"DELETE" }); toast("Campaign deleted", "success"); loadCampaigns(); if (selected?.id === id) setSelected(null); } catch { toast("Delete failed", "error"); }
+  }
+
+  async function toggleCampaign(camp) {
+    try { await apiFetch(`/api/campaigns/${camp.id}`, { method:"PUT", body: JSON.stringify({ ...camp, active: !camp.active }) }); toast(`Campaign ${!camp.active?"activated":"paused"}`, "success"); loadCampaigns(); } catch { toast("Update failed", "error"); }
+  }
+
+  async function markReplied(leadId) {
+    try { await apiFetch(`/api/leads/${leadId}`, { method:"PUT", body: JSON.stringify({ status:"replied" }) }); toast("Marked as replied", "success"); if (selected) loadLeads(selected.id); } catch { toast("Update failed", "error"); }
+  }
+
+  const statusBadge = s => {
+    const map = { queued:"badge-gray", sent:"badge-blue", replied:"badge-green", bounced:"badge-red", skipped:"badge-yellow" };
+    return <span className={`badge ${map[s]||"badge-gray"}`}>{s || "queued"}</span>;
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div className="page-header" style={{ margin:0 }}>
+          <div className="page-title">Campaigns</div>
+          <div className="page-sub">Manage your email sequences</div>
+        </div>
+        <button className="btn btn-primary" onClick={() => { setEditCamp(null); setShowCamp(true); }}>+ New Campaign</button>
+      </div>
+
+      {showCamp && <CampaignModal existing={editCamp} onClose={() => { setShowCamp(false); setEditCamp(null); }} onSave={() => { setShowCamp(false); setEditCamp(null); loadCampaigns(); toast("Campaign saved!", "success"); }} />}
+      {showLead && selected && <LeadModal campaignId={selected.id} onClose={() => setShowLead(false)} onSave={() => { setShowLead(false); loadLeads(selected.id); toast("Leads added!", "success"); }} />}
+
+      <div style={{ display:"grid", gridTemplateColumns: selected ? "320px 1fr" : "1fr", gap:20 }}>
+        <div>
+          {loading && <div className="text-muted text-sm">Loading...</div>}
+          {!loading && campaigns.length === 0 && (
+            <div className="empty-state">
+              <div className="empty-icon">📋</div>
+              <div className="empty-title">No campaigns yet</div>
+              <div className="text-muted text-sm">Create your first campaign to start</div>
+            </div>
+          )}
+          {campaigns.map(c => (
+            <div className="campaign-card" key={c.id} style={{ cursor:"pointer", borderColor: selected?.id===c.id ? "#2563eb" : "#1e2535" }} onClick={() => setSelected(c)}>
+              <div className="flex justify-between items-center mb-4">
+                <div style={{ fontWeight:600, fontSize:14, color:"#f1f5f9" }}>{c.name}</div>
+                <span className={`badge ${c.active ? "badge-green" : "badge-gray"}`}>{c.active ? "Active" : "Paused"}</span>
+              </div>
+              <div className="text-xs text-muted mb-4">{(c.steps||[]).length} step{(c.steps||[]).length!==1?"s":""} in sequence</div>
+              <div className="flex gap-2">
+                <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); setEditCamp(c); setShowCamp(true); }}>Edit</button>
+                <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); toggleCampaign(c); }}>{c.active?"Pause":"Activate"}</button>
+                <button className="btn btn-danger btn-sm" onClick={e => { e.stopPropagation(); deleteCampaign(c.id); }}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {selected && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <div style={{ fontWeight:600, color:"#f1f5f9" }}>Leads — {selected.name}</div>
+              <div className="flex gap-2">
+                <button className="btn btn-secondary btn-sm" onClick={() => setSelected(null)}>← Back</button>
+                <button className="btn btn-primary btn-sm" onClick={() => setShowLead(true)}>+ Add Leads</button>
+              </div>
+            </div>
+            <div className="card">
+              {leads.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">👥</div>
+                  <div className="empty-title">No leads yet</div>
+                  <div className="text-muted text-sm">Add leads manually or import CSV</div>
+                </div>
+              ) : (
+                <table>
+                  <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Status</th><th>Action</th></tr></thead>
+                  <tbody>
+                    {leads.map(l => (
+                      <tr key={l.id}>
+                        <td>{l.first_name} {l.last_name}</td>
+                        <td style={{ color:"#60a5fa" }}>{l.email}</td>
+                        <td>{l.company || <span className="text-muted">—</span>}</td>
+                        <td>{statusBadge(l.status)}</td>
+                        <td>
+                          {l.status !== "replied" && (
+                            <button className="btn btn-success btn-sm" onClick={() => markReplied(l.id)}>Mark Replied</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Accounts Page ────────────────────────────────────────
+function Accounts({ toast }) {
+  const [accounts, setAccounts] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [email, setEmail] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const [dailyLimit, setDailyLimit] = useState(15);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    try { const d = await apiFetch("/api/accounts"); setAccounts(Array.isArray(d) ? d : []); } catch { toast("Failed to load accounts", "error"); }
+  }, []);
+
+  useEffect(() => { load(); }, []);
+
+  async function addAccount() {
+    if (!email.trim() || !appPassword.trim()) { setErr("Email and app password required"); return; }
+    setSaving(true); setErr("");
+    try {
+      await apiFetch("/api/accounts", { method:"POST", body: JSON.stringify({ email: email.trim(), app_password: appPassword.trim(), daily_limit: dailyLimit }) });
+      toast("Account added!", "success"); setShowModal(false); setEmail(""); setAppPassword(""); load();
+    } catch { setErr("Failed to add account. Check backend."); }
+    setSaving(false);
+  }
+
+  async function deleteAccount(id) {
+    if (!confirm("Remove this Gmail account?")) return;
+    try { await apiFetch(`/api/accounts/${id}`, { method:"DELETE" }); toast("Account removed", "success"); load(); } catch { toast("Delete failed", "error"); }
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div className="page-header" style={{ margin:0 }}>
+          <div className="page-title">Gmail Accounts</div>
+          <div className="page-sub">Manage sending accounts (max 15 emails/day each)</div>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Account</button>
+      </div>
+
+      {showModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="modal">
+            <div className="modal-title">Add Gmail Account</div>
+            {err && <div className="alert alert-error">{err}</div>}
+            <div className="alert alert-info">
+              You need a Gmail <strong>App Password</strong>, not your regular password.<br/>
+              Go to: Google Account → Security → 2-Step Verification → App passwords
+            </div>
+            <div className="form-group"><label>Gmail Address</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="yourname@gmail.com" /></div>
+            <div className="form-group"><label>App Password (16-character)</label><input type="password" value={appPassword} onChange={e=>setAppPassword(e.target.value)} placeholder="xxxx xxxx xxxx xxxx" /></div>
+            <div className="form-group"><label>Daily Send Limit</label><input type="number" min="1" max="50" value={dailyLimit} onChange={e=>setDailyLimit(+e.target.value)} /><div className="text-xs text-muted" style={{ marginTop:4 }}>Keep at 15 or below to stay safe</div></div>
+            <div className="flex gap-3">
+              <button className="btn btn-secondary" onClick={() => setShowModal(false)} style={{ flex:1 }}>Cancel</button>
+              <button className="btn btn-primary" onClick={addAccount} disabled={saving} style={{ flex:1 }}>{saving?"Adding...":"Add Account"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {accounts.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📧</div>
+          <div className="empty-title">No accounts connected</div>
+          <div className="text-muted text-sm">Add a Gmail account to start sending</div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gap:12 }}>
+          {accounts.map(a => (
+            <div className="card flex justify-between items-center" key={a.id}>
+              <div>
+                <div style={{ fontWeight:600, color:"#f1f5f9", marginBottom:4 }}>{a.email}</div>
+                <div className="text-xs text-muted">Daily limit: {a.daily_limit || 15} emails · Sent today: {a.sent_today || 0}</div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:20, fontWeight:700, color:"#60a5fa" }}>{a.sent_today || 0}/{a.daily_limit || 15}</div>
+                  <div className="text-xs text-muted">sent today</div>
+                </div>
+                <span className="badge badge-green">Active</span>
+                <button className="btn btn-danger btn-sm" onClick={() => deleteAccount(a.id)}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Inbox Page ───────────────────────────────────────────
+function Inbox({ toast }) {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try { const d = await apiFetch("/api/leads"); setLeads(Array.isArray(d) ? d.filter(l => l.status === "replied") : []); } catch { toast("Failed to load inbox", "error"); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-title">Inbox</div>
+        <div className="page-sub">Leads who have replied — check Gmail and mark them here</div>
+      </div>
+      <div className="alert alert-info mb-4">
+        ColdReach doesn't auto-read Gmail replies. Check your Gmail inbox, then mark leads as replied here to stop future follow-ups.
+      </div>
+      <div className="card">
+        {loading && <div className="text-muted text-sm">Loading...</div>}
+        {!loading && leads.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-icon">💬</div>
+            <div className="empty-title">No replies yet</div>
+            <div className="text-muted text-sm">When you get a reply in Gmail, go to Campaigns → mark the lead as replied</div>
+          </div>
+        )}
+        {leads.length > 0 && (
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Campaign</th></tr></thead>
+            <tbody>
+              {leads.map(l => (
+                <tr key={l.id}>
+                  <td>{l.first_name} {l.last_name}</td>
+                  <td style={{ color:"#60a5fa" }}>{l.email}</td>
+                  <td>{l.company || <span className="text-muted">—</span>}</td>
+                  <td><span className="badge badge-green">Replied ✓</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── App Root ─────────────────────────────────────────────
+function App() {
+  const [page, setPage] = useState("dashboard");
+  const [toastMsg, setToastMsg] = useState(null);
+
+  function toast(msg, type = "success") { setToastMsg({ msg, type }); }
+
+  const nav = [
+    { id:"dashboard", label:"Dashboard", icon:"📊" },
+    { id:"campaigns", label:"Campaigns", icon:"📋" },
+    { id:"accounts",  label:"Accounts",  icon:"📧" },
+    { id:"inbox",     label:"Inbox",     icon:"💬" },
+  ];
+
+  const pages = { dashboard: <Dashboard />, campaigns: <Campaigns toast={toast} />, accounts: <Accounts toast={toast} />, inbox: <Inbox toast={toast} /> };
+
+  return (
+    <>
+      <div className="sidebar">
+        <div className="logo">ColdReach <span>Email Automation</span></div>
+        <nav className="nav">
+          {nav.map(n => (
+            <div key={n.id} className={`nav-item ${page===n.id?"active":""}`} onClick={() => setPage(n.id)}>
+              <span className="nav-icon">{n.icon}</span>
+              <span>{n.label}</span>
+            </div>
+          ))}
+        </nav>
+        <div style={{ padding:"0 20px 20px", borderTop:"1px solid #1e2535", paddingTop:16 }}>
+          <div className="text-xs text-muted">Scheduler: 9 AM daily</div>
+          <div className="text-xs text-muted" style={{ marginTop:4 }}>45 emails/day max</div>
+        </div>
+      </div>
+      <main className="main">{pages[page]}</main>
+      {toastMsg && <Toast msg={toastMsg.msg} type={toastMsg.type} onClose={() => setToastMsg(null)} />}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
