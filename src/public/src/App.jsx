@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // IMPORTANT: Replace with your Railway backend URL after deploying backend
-const API_URL = https://coldreach-production-ce11.up.railway.app
+const API_URL = "https://coldreach-production-ce11.up.railway.app"
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const T = {
   bg:      "#0a0a0f",
