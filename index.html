@@ -76,6 +76,11 @@
     .alert-error { background: #450a0a; border: 1px solid #7f1d1d; color: #fca5a5; }
     .alert-success { background: #052e16; border: 1px solid #14532d; color: #86efac; }
     .alert-info { background: #0c1a33; border: 1px solid #1e3a5f; color: #93c5fd; }
+    .info-box { background: #0c1a33; border: 1px solid #1e3a5f; color: #93c5fd; padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 12px; line-height: 1.5; }
+    .fg { margin-bottom: 16px; }
+    .fg label { display: block; color: #94a3b8; font-size: 12px; margin-bottom: 6px; font-weight: 500; }
+    .fg input { background: #0f1117; border: 1px solid #1e2535; border-radius: 8px; color: #e2e8f0; padding: 10px 14px; font-size: 13px; width: 100%; }
+    .fg small { display: block; margin-top: 4px; color: #64748b; font-size: 11px; }
     @media (max-width: 768px) {
       .sidebar { width: 60px; } .logo span, .nav-item span { display: none; }
       .main { margin-left: 60px; padding: 16px; }
@@ -86,16 +91,15 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const API_URL = "https://precious-warmth-coldreach.railway.app";
+const API_URL = "https://coldreach-production-ce11.up.railway.app";
 
 const { useState, useEffect, useCallback } = React;
 
 // ─── API helpers ────────────────────────────────────────
-async function apiFetch(path, opts = {}) {
-  const res = await fetch(API_URL + path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+async function apiCall(method, path, body) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API_URL + path, opts);
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
 }
@@ -119,16 +123,24 @@ function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch("/api/campaigns").catch(() => []),
-      apiFetch("/api/leads").catch(() => []),
-      apiFetch("/api/accounts").catch(() => []),
-    ]).then(([camps, leads, accs]) => {
-      const allLeads = Array.isArray(leads) ? leads : [];
+      apiCall("GET", "/api/campaigns").catch(() => []),
+      apiCall("GET", "/api/accounts").catch(() => []),
+    ]).then(([camps, accs]) => {
+      let totalLeads = 0, totalSent = 0, totalReplies = 0;
+      if (Array.isArray(camps)) {
+        camps.forEach(c => {
+          if (c.leads) {
+            totalLeads += c.leads.length;
+            totalSent += c.leads.filter(l => l.status === "sent").length;
+            totalReplies += c.leads.filter(l => l.replied).length;
+          }
+        });
+      }
       setStats({
         campaigns: Array.isArray(camps) ? camps.length : 0,
-        leads: allLeads.length,
-        sent: allLeads.filter(l => l.status === "sent" || l.status === "replied").length,
-        replies: allLeads.filter(l => l.status === "replied").length,
+        leads: totalLeads,
+        sent: totalSent,
+        replies: totalReplies,
         accounts: Array.isArray(accs) ? accs.length : 0,
       });
       setLoading(false);
@@ -166,8 +178,8 @@ function Dashboard() {
           {[
             { label:"Railway Backend", status:"Live" },
             { label:"Supabase DB", status:"Connected" },
-            { label:"Daily Scheduler", status:"9 AM IST" },
-            { label:"Gmail Accounts", status: loading ? "—" : `${stats.accounts} connected` },
+            { label:"Email Service", status:"Resend API" },
+            { label:"Sending Accounts", status: loading ? "—" : `${stats.accounts} active` },
           ].map(s => (
             <div key={s.label} className="flex justify-between items-center" style={{ background:"#0f1117", padding:"12px 16px", borderRadius:8, border:"1px solid #1e2535" }}>
               <span className="text-sm text-muted">{s.label}</span>
@@ -182,28 +194,28 @@ function Dashboard() {
 
 // ─── Campaign Modal ───────────────────────────────────────
 function CampaignModal({ onClose, onSave, existing }) {
-  const blank = { subject:"", body:"", delay_days: 0 };
+  const blank = { subject:"", body:"" };
   const [name, setName] = useState(existing?.name || "");
-  const [steps, setSteps] = useState(existing?.steps || [{ ...blank }]);
+  const [sequence, setSequence] = useState(existing?.sequence || [{ ...blank }]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const addStep = () => setSteps([...steps, { ...blank, delay_days: 2 }]);
-  const removeStep = i => setSteps(steps.filter((_, idx) => idx !== i));
+  const addStep = () => setSequence([...sequence, { ...blank }]);
+  const removeStep = i => setSequence(sequence.filter((_, idx) => idx !== i));
   const updateStep = (i, field, val) => {
-    const s = [...steps]; s[i] = { ...s[i], [field]: val }; setSteps(s);
+    const s = [...sequence]; s[i] = { ...s[i], [field]: val }; setSequence(s);
   };
 
   async function save() {
     if (!name.trim()) { setErr("Campaign name is required"); return; }
-    if (steps.some(s => !s.subject.trim() || !s.body.trim())) { setErr("All steps need subject and body"); return; }
+    if (sequence.some(s => !s.subject.trim() || !s.body.trim())) { setErr("All steps need subject and body"); return; }
     setSaving(true); setErr("");
     try {
       const method = existing ? "PUT" : "POST";
       const url = existing ? `/api/campaigns/${existing.id}` : "/api/campaigns";
-      await apiFetch(url, { method, body: JSON.stringify({ name: name.trim(), steps }) });
+      await apiCall(method, url, { name: name.trim(), sequence });
       onSave();
-    } catch (e) { setErr("Failed to save. Check backend connection."); }
+    } catch (e) { setErr("Failed to save: " + e.message); }
     setSaving(false);
   }
 
@@ -214,29 +226,23 @@ function CampaignModal({ onClose, onSave, existing }) {
         {err && <div className="alert alert-error">{err}</div>}
         <div className="form-group">
           <label>Campaign Name</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Web Design Outreach — US Agencies" />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Web Design Outreach — US Agencies" autofocus />
         </div>
         <div style={{ marginBottom:8, color:"#94a3b8", fontSize:13, fontWeight:600 }}>Email Sequence Steps</div>
-        {steps.map((step, i) => (
+        {sequence.map((step, i) => (
           <div className="step-block" key={i}>
             <div className="flex justify-between items-center mb-4">
               <div className="step-num">{i + 1}</div>
-              {steps.length > 1 && (
+              {sequence.length > 1 && (
                 <button className="btn btn-danger btn-sm" onClick={() => removeStep(i)}>Remove</button>
               )}
             </div>
-            {i > 0 && (
-              <div className="form-group">
-                <label>Send after (days from previous step)</label>
-                <input type="number" min="1" value={step.delay_days} onChange={e => updateStep(i, "delay_days", +e.target.value)} />
-              </div>
-            )}
             <div className="form-group">
               <label>Subject</label>
               <input value={step.subject} onChange={e => updateStep(i, "subject", e.target.value)} placeholder="Quick question, {{firstName}}" />
             </div>
             <div className="form-group">
-              <label>Body — use {"{{firstName}}"}, {"{{company}}"}</label>
+              <label>Body — use {"{{firstName}}"}, {"{{lastName}}"}, {"{{company}}"}, {"{{email}}"}, {"{{iceBreaker}}"}</label>
               <textarea rows={5} value={step.body} onChange={e => updateStep(i, "body", e.target.value)} placeholder={`Hi {{firstName}},\n\nI noticed that {{company}} might benefit from...\n\nBest,\nMohammed`} />
             </div>
           </div>
@@ -258,6 +264,7 @@ function LeadModal({ campaignId, onClose, onSave }) {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
+  const [iceBreaker, setIceBreaker] = useState("");
   const [csvText, setCsvText] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -270,7 +277,7 @@ function LeadModal({ campaignId, onClose, onSave }) {
       const vals = line.split(",").map(v => v.trim());
       const obj = {};
       headers.forEach((h, i) => obj[h] = vals[i] || "");
-      return { firstName: obj["firstname"] || obj["first_name"] || obj["name"] || "", lastName: obj["lastname"] || obj["last_name"] || "", email: obj["email"] || "", company: obj["company"] || "" };
+      return { firstName: obj["firstname"] || obj["first_name"] || "", lastName: obj["lastname"] || obj["last_name"] || "", email: obj["email"] || "", company: obj["company"] || "", iceBreaker: obj["icebreaker"] || obj["ice_breaker"] || "" };
     }).filter(l => l.email);
   }
 
@@ -280,22 +287,22 @@ function LeadModal({ campaignId, onClose, onSave }) {
     if (!email.trim()) { setErr("Email required"); return; }
     setSaving(true); setErr("");
     try {
-      await apiFetch("/api/leads", { method:"POST", body: JSON.stringify({ campaign_id: campaignId, first_name: firstName, last_name: lastName, email, company }) });
+      await apiCall("POST", `/api/campaigns/${campaignId}/leads`, { leads: [{ firstName, lastName, email, company, iceBreaker }] });
+      setFirstName(""); setLastName(""); setEmail(""); setCompany(""); setIceBreaker("");
       onSave();
-    } catch { setErr("Failed to add lead"); }
+    } catch(e) { setErr("Failed: " + e.message); }
     setSaving(false);
   }
 
   async function saveCSV() {
     const leads = parseCSV(csvText);
-    if (!leads.length) { setErr("No valid leads found. Make sure CSV has an 'email' column."); return; }
+    if (!leads.length) { setErr("No valid leads found. CSV must have 'email' column."); return; }
     setSaving(true); setErr("");
     try {
-      for (const l of leads) {
-        await apiFetch("/api/leads", { method:"POST", body: JSON.stringify({ campaign_id: campaignId, first_name: l.firstName, last_name: l.lastName, email: l.email, company: l.company }) });
-      }
+      await apiCall("POST", `/api/campaigns/${campaignId}/leads`, { leads });
+      setCsvText("");
       onSave();
-    } catch { setErr("Failed to import some leads"); }
+    } catch(e) { setErr("Failed: " + e.message); }
     setSaving(false);
   }
 
@@ -316,6 +323,7 @@ function LeadModal({ campaignId, onClose, onSave }) {
             </div>
             <div className="form-group"><label>Email *</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="john@company.com" /></div>
             <div className="form-group"><label>Company</label><input value={company} onChange={e=>setCompany(e.target.value)} placeholder="Acme Inc" /></div>
+            <div className="form-group"><label>Ice Breaker (optional)</label><input value={iceBreaker} onChange={e=>setIceBreaker(e.target.value)} placeholder="Personal detail about them" /></div>
             <div className="flex gap-3">
               <button className="btn btn-secondary" onClick={onClose} style={{ flex:1 }}>Cancel</button>
               <button className="btn btn-primary" onClick={saveManual} disabled={saving} style={{ flex:1 }}>{saving?"Adding...":"Add Lead"}</button>
@@ -323,10 +331,10 @@ function LeadModal({ campaignId, onClose, onSave }) {
           </>
         ) : (
           <>
-            <div className="alert alert-info">CSV format: <strong>email, firstName, lastName, company</strong> (header row required)</div>
-            <div className="form-group"><label>Paste CSV content</label><textarea rows={8} value={csvText} onChange={e=>setCsvText(e.target.value)} placeholder={`email,firstName,lastName,company\njohn@acme.com,John,Smith,Acme Inc\njane@corp.com,Jane,Doe,Corp LLC`} /></div>
+            <div className="alert alert-info">CSV format: <strong>email, firstName, lastName, company, iceBreaker</strong> (header row required)</div>
+            <div className="form-group"><label>Paste CSV content</label><textarea rows={8} value={csvText} onChange={e=>setCsvText(e.target.value)} placeholder={`email,firstName,lastName,company,iceBreaker\njohn@acme.com,John,Smith,Acme Inc,Noticed your LinkedIn\njane@corp.com,Jane,Doe,Corp LLC,CEO of the year`} /></div>
             {preview.length > 0 && (
-              <div className="alert alert-success">{preview.length === 1 ? `1 lead` : `${preview.length}+ leads`} detected — e.g. {preview[0].email}</div>
+              <div className="alert alert-success">{preview.length === 1 ? `1 lead` : `${preview.length}+ leads`} detected</div>
             )}
             <div className="flex gap-3">
               <button className="btn btn-secondary" onClick={onClose} style={{ flex:1 }}>Cancel</button>
@@ -343,39 +351,38 @@ function LeadModal({ campaignId, onClose, onSave }) {
 function Campaigns({ toast }) {
   const [campaigns, setCampaigns] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [leads, setLeads] = useState([]);
   const [showCamp, setShowCamp] = useState(false);
   const [showLead, setShowLead] = useState(false);
   const [editCamp, setEditCamp] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const loadCampaigns = useCallback(async () => {
-    try { const d = await apiFetch("/api/campaigns"); setCampaigns(Array.isArray(d) ? d : []); } catch { toast("Failed to load campaigns", "error"); }
+    try { const d = await apiCall("GET", "/api/campaigns"); setCampaigns(Array.isArray(d) ? d : []); } catch(e) { toast("Failed to load campaigns", "error"); }
     setLoading(false);
-  }, []);
+  }, [toast]);
 
-  const loadLeads = useCallback(async (campId) => {
-    try { const d = await apiFetch(`/api/leads?campaign_id=${campId}`); setLeads(Array.isArray(d) ? d : []); } catch { setLeads([]); }
-  }, []);
-
-  useEffect(() => { loadCampaigns(); }, []);
-  useEffect(() => { if (selected) loadLeads(selected.id); }, [selected]);
+  useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
 
   async function deleteCampaign(id) {
     if (!confirm("Delete this campaign and all its leads?")) return;
-    try { await apiFetch(`/api/campaigns/${id}`, { method:"DELETE" }); toast("Campaign deleted", "success"); loadCampaigns(); if (selected?.id === id) setSelected(null); } catch { toast("Delete failed", "error"); }
+    try { await apiCall("DELETE", `/api/campaigns/${id}`); toast("Campaign deleted", "success"); loadCampaigns(); if (selected?.id === id) setSelected(null); } catch(e) { toast("Delete failed", "error"); }
   }
 
   async function toggleCampaign(camp) {
-    try { await apiFetch(`/api/campaigns/${camp.id}`, { method:"PUT", body: JSON.stringify({ ...camp, active: !camp.active }) }); toast(`Campaign ${!camp.active?"activated":"paused"}`, "success"); loadCampaigns(); } catch { toast("Update failed", "error"); }
+    try { await apiCall("PUT", `/api/campaigns/${camp.id}`, { name: camp.name, status: camp.status === "active" ? "draft" : "active", sequence: camp.sequence }); toast(`Campaign ${camp.status === "draft" ? "activated" : "paused"}`, "success"); loadCampaigns(); } catch(e) { toast("Update failed", "error"); }
   }
 
-  async function markReplied(leadId) {
-    try { await apiFetch(`/api/leads/${leadId}`, { method:"PUT", body: JSON.stringify({ status:"replied" }) }); toast("Marked as replied", "success"); if (selected) loadLeads(selected.id); } catch { toast("Update failed", "error"); }
+  async function sendNow(campId) {
+    try { const result = await apiCall("POST", `/api/campaigns/${campId}/send-now`); toast(`Sent ${result.sent} emails!`, "success"); loadCampaigns(); } catch(e) { toast("Send failed: " + e.message, "error"); }
+  }
+
+  async function deleteLead(leadId) {
+    if (!confirm("Delete this lead?")) return;
+    try { await apiCall("DELETE", `/api/leads/${leadId}`); toast("Lead deleted", "success"); if (selected) { const updated = {...selected}; updated.leads = updated.leads.filter(l => l.id !== leadId); setSelected(updated); } } catch(e) { toast("Delete failed", "error"); }
   }
 
   const statusBadge = s => {
-    const map = { queued:"badge-gray", sent:"badge-blue", replied:"badge-green", bounced:"badge-red", skipped:"badge-yellow" };
+    const map = { queued:"badge-gray", sent:"badge-blue", replied:"badge-green", bounced:"badge-red" };
     return <span className={`badge ${map[s]||"badge-gray"}`}>{s || "queued"}</span>;
   };
 
@@ -390,7 +397,7 @@ function Campaigns({ toast }) {
       </div>
 
       {showCamp && <CampaignModal existing={editCamp} onClose={() => { setShowCamp(false); setEditCamp(null); }} onSave={() => { setShowCamp(false); setEditCamp(null); loadCampaigns(); toast("Campaign saved!", "success"); }} />}
-      {showLead && selected && <LeadModal campaignId={selected.id} onClose={() => setShowLead(false)} onSave={() => { setShowLead(false); loadLeads(selected.id); toast("Leads added!", "success"); }} />}
+      {showLead && selected && <LeadModal campaignId={selected.id} onClose={() => setShowLead(false)} onSave={() => { setShowLead(false); loadCampaigns(); toast("Leads added!", "success"); }} />}
 
       <div style={{ display:"grid", gridTemplateColumns: selected ? "320px 1fr" : "1fr", gap:20 }}>
         <div>
@@ -406,12 +413,12 @@ function Campaigns({ toast }) {
             <div className="campaign-card" key={c.id} style={{ cursor:"pointer", borderColor: selected?.id===c.id ? "#2563eb" : "#1e2535" }} onClick={() => setSelected(c)}>
               <div className="flex justify-between items-center mb-4">
                 <div style={{ fontWeight:600, fontSize:14, color:"#f1f5f9" }}>{c.name}</div>
-                <span className={`badge ${c.active ? "badge-green" : "badge-gray"}`}>{c.active ? "Active" : "Paused"}</span>
+                <span className={`badge ${c.status === "active" ? "badge-green" : "badge-gray"}`}>{c.status === "active" ? "Active" : "Draft"}</span>
               </div>
-              <div className="text-xs text-muted mb-4">{(c.steps||[]).length} step{(c.steps||[]).length!==1?"s":""} in sequence</div>
+              <div className="text-xs text-muted mb-4">{(c.sequence||[]).length} step{(c.sequence||[]).length!==1?"s":""} • {(c.leads||[]).length} lead{(c.leads||[]).length!==1?"s":""}</div>
               <div className="flex gap-2">
                 <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); setEditCamp(c); setShowCamp(true); }}>Edit</button>
-                <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); toggleCampaign(c); }}>{c.active?"Pause":"Activate"}</button>
+                <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); toggleCampaign(c); }}>{c.status === "active"?"Pause":"Activate"}</button>
                 <button className="btn btn-danger btn-sm" onClick={e => { e.stopPropagation(); deleteCampaign(c.id); }}>Delete</button>
               </div>
             </div>
@@ -421,14 +428,15 @@ function Campaigns({ toast }) {
         {selected && (
           <div>
             <div className="flex justify-between items-center mb-4">
-              <div style={{ fontWeight:600, color:"#f1f5f9" }}>Leads — {selected.name}</div>
+              <div style={{ fontWeight:600, color:"#f1f5f9" }}>{selected.name}</div>
               <div className="flex gap-2">
                 <button className="btn btn-secondary btn-sm" onClick={() => setSelected(null)}>← Back</button>
+                <button className="btn btn-primary btn-sm" onClick={() => sendNow(selected.id)}>📤 Send Now</button>
                 <button className="btn btn-primary btn-sm" onClick={() => setShowLead(true)}>+ Add Leads</button>
               </div>
             </div>
             <div className="card">
-              {leads.length === 0 ? (
+              {(!selected.leads || selected.leads.length === 0) ? (
                 <div className="empty-state">
                   <div className="empty-icon">👥</div>
                   <div className="empty-title">No leads yet</div>
@@ -438,17 +446,13 @@ function Campaigns({ toast }) {
                 <table>
                   <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Status</th><th>Action</th></tr></thead>
                   <tbody>
-                    {leads.map(l => (
+                    {selected.leads.map(l => (
                       <tr key={l.id}>
-                        <td>{l.first_name} {l.last_name}</td>
+                        <td>{l.firstName} {l.lastName}</td>
                         <td style={{ color:"#60a5fa" }}>{l.email}</td>
                         <td>{l.company || <span className="text-muted">—</span>}</td>
                         <td>{statusBadge(l.status)}</td>
-                        <td>
-                          {l.status !== "replied" && (
-                            <button className="btn btn-success btn-sm" onClick={() => markReplied(l.id)}>Mark Replied</button>
-                          )}
-                        </td>
+                        <td><button className="btn btn-danger btn-sm" onClick={() => deleteLead(l.id)}>Delete</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -466,39 +470,38 @@ function Campaigns({ toast }) {
 function Accounts({ toast }) {
   const [accounts, setAccounts] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [email, setEmail] = useState("");
-  const [appPassword, setAppPassword] = useState("");
-  const [dailyLimit, setDailyLimit] = useState(15);
+  const [label, setLabel] = useState("");
+  const [limit, setLimit] = useState(100);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
-    try { const d = await apiFetch("/api/accounts"); setAccounts(Array.isArray(d) ? d : []); } catch { toast("Failed to load accounts", "error"); }
-  }, []);
+    try { const d = await apiCall("GET", "/api/accounts"); setAccounts(Array.isArray(d) ? d : []); } catch(e) { toast("Failed to load accounts", "error"); }
+  }, [toast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   async function addAccount() {
-    if (!email.trim() || !appPassword.trim()) { setErr("Email and app password required"); return; }
+    if (!label.trim()) { setErr("Enter a label"); return; }
     setSaving(true); setErr("");
     try {
-      await apiFetch("/api/accounts", { method:"POST", body: JSON.stringify({ email: email.trim(), app_password: appPassword.trim(), daily_limit: dailyLimit }) });
-      toast("Account added!", "success"); setShowModal(false); setEmail(""); setAppPassword(""); load();
-    } catch { setErr("Failed to add account. Check backend."); }
+      await apiCall("POST", "/api/accounts", { email: "frdhdu55@gmail.com", label, limit });
+      toast("Account added!", "success"); setShowModal(false); setLabel(""); setLimit(100); load();
+    } catch(e) { setErr("Failed: " + e.message); }
     setSaving(false);
   }
 
   async function deleteAccount(id) {
-    if (!confirm("Remove this Gmail account?")) return;
-    try { await apiFetch(`/api/accounts/${id}`, { method:"DELETE" }); toast("Account removed", "success"); load(); } catch { toast("Delete failed", "error"); }
+    if (!confirm("Remove this account?")) return;
+    try { await apiCall("DELETE", `/api/accounts/${id}`); toast("Account removed", "success"); load(); } catch(e) { toast("Delete failed", "error"); }
   }
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="page-header" style={{ margin:0 }}>
-          <div className="page-title">Gmail Accounts</div>
-          <div className="page-sub">Manage sending accounts (max 15 emails/day each)</div>
+          <div className="page-title">Sending Accounts</div>
+          <div className="page-sub">Resend API (100 emails/day free)</div>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Account</button>
       </div>
@@ -506,15 +509,15 @@ function Accounts({ toast }) {
       {showModal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal">
-            <div className="modal-title">Add Gmail Account</div>
+            <div className="modal-title">Add Sending Account</div>
             {err && <div className="alert alert-error">{err}</div>}
-            <div className="alert alert-info">
-              You need a Gmail <strong>App Password</strong>, not your regular password.<br/>
-              Go to: Google Account → Security → 2-Step Verification → App passwords
+            <div className="info-box">
+              <strong>Resend Account:</strong><br/>
+              Emails will be sent from <strong>frdhdu55@gmail.com</strong> via Resend API.<br/>
+              Free plan: 100 emails/day, 3,000/month forever.
             </div>
-            <div className="form-group"><label>Gmail Address</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="yourname@gmail.com" /></div>
-            <div className="form-group"><label>App Password (16-character)</label><input type="password" value={appPassword} onChange={e=>setAppPassword(e.target.value)} placeholder="xxxx xxxx xxxx xxxx" /></div>
-            <div className="form-group"><label>Daily Send Limit</label><input type="number" min="1" max="50" value={dailyLimit} onChange={e=>setDailyLimit(+e.target.value)} /><div className="text-xs text-muted" style={{ marginTop:4 }}>Keep at 15 or below to stay safe</div></div>
+            <div className="fg"><label>Account Label</label><input id="m-acc-label" placeholder="e.g. Primary Account" value={label} onChange={e => setLabel(e.target.value)} autofocus /></div>
+            <div className="fg"><label>Daily Limit</label><input type="number" value={limit} onChange={e => setLimit(parseInt(e.target.value))} min="1" max="100" /><small>Resend free tier: 100/day</small></div>
             <div className="flex gap-3">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)} style={{ flex:1 }}>Cancel</button>
               <button className="btn btn-primary" onClick={addAccount} disabled={saving} style={{ flex:1 }}>{saving?"Adding...":"Add Account"}</button>
@@ -526,20 +529,20 @@ function Accounts({ toast }) {
       {accounts.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📧</div>
-          <div className="empty-title">No accounts connected</div>
-          <div className="text-muted text-sm">Add a Gmail account to start sending</div>
+          <div className="empty-title">No accounts configured</div>
+          <div className="text-muted text-sm">Create a sending account to start</div>
         </div>
       ) : (
         <div style={{ display:"grid", gap:12 }}>
           {accounts.map(a => (
             <div className="card flex justify-between items-center" key={a.id}>
               <div>
-                <div style={{ fontWeight:600, color:"#f1f5f9", marginBottom:4 }}>{a.email}</div>
-                <div className="text-xs text-muted">Daily limit: {a.daily_limit || 15} emails · Sent today: {a.sent_today || 0}</div>
+                <div style={{ fontWeight:600, color:"#f1f5f9", marginBottom:4 }}>{a.label}</div>
+                <div className="text-xs text-muted">Resend • Daily limit: {a.limit} • Sent today: {a.sentToday || 0}</div>
               </div>
               <div className="flex items-center gap-3">
                 <div style={{ textAlign:"right" }}>
-                  <div style={{ fontSize:20, fontWeight:700, color:"#60a5fa" }}>{a.sent_today || 0}/{a.daily_limit || 15}</div>
+                  <div style={{ fontSize:20, fontWeight:700, color:"#60a5fa" }}>{a.sentToday || 0}/{a.limit}</div>
                   <div className="text-xs text-muted">sent today</div>
                 </div>
                 <span className="badge badge-green">Active</span>
@@ -549,56 +552,6 @@ function Accounts({ toast }) {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Inbox Page ───────────────────────────────────────────
-function Inbox({ toast }) {
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try { const d = await apiFetch("/api/leads"); setLeads(Array.isArray(d) ? d.filter(l => l.status === "replied") : []); } catch { toast("Failed to load inbox", "error"); }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, []);
-
-  return (
-    <div>
-      <div className="page-header">
-        <div className="page-title">Inbox</div>
-        <div className="page-sub">Leads who have replied — check Gmail and mark them here</div>
-      </div>
-      <div className="alert alert-info mb-4">
-        ColdReach doesn't auto-read Gmail replies. Check your Gmail inbox, then mark leads as replied here to stop future follow-ups.
-      </div>
-      <div className="card">
-        {loading && <div className="text-muted text-sm">Loading...</div>}
-        {!loading && leads.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-icon">💬</div>
-            <div className="empty-title">No replies yet</div>
-            <div className="text-muted text-sm">When you get a reply in Gmail, go to Campaigns → mark the lead as replied</div>
-          </div>
-        )}
-        {leads.length > 0 && (
-          <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Campaign</th></tr></thead>
-            <tbody>
-              {leads.map(l => (
-                <tr key={l.id}>
-                  <td>{l.first_name} {l.last_name}</td>
-                  <td style={{ color:"#60a5fa" }}>{l.email}</td>
-                  <td>{l.company || <span className="text-muted">—</span>}</td>
-                  <td><span className="badge badge-green">Replied ✓</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   );
 }
@@ -614,10 +567,9 @@ function App() {
     { id:"dashboard", label:"Dashboard", icon:"📊" },
     { id:"campaigns", label:"Campaigns", icon:"📋" },
     { id:"accounts",  label:"Accounts",  icon:"📧" },
-    { id:"inbox",     label:"Inbox",     icon:"💬" },
   ];
 
-  const pages = { dashboard: <Dashboard />, campaigns: <Campaigns toast={toast} />, accounts: <Accounts toast={toast} />, inbox: <Inbox toast={toast} /> };
+  const pages = { dashboard: <Dashboard />, campaigns: <Campaigns toast={toast} />, accounts: <Accounts toast={toast} /> };
 
   return (
     <>
@@ -632,8 +584,8 @@ function App() {
           ))}
         </nav>
         <div style={{ padding:"0 20px 20px", borderTop:"1px solid #1e2535", paddingTop:16 }}>
-          <div className="text-xs text-muted">Scheduler: 9 AM daily</div>
-          <div className="text-xs text-muted" style={{ marginTop:4 }}>45 emails/day max</div>
+          <div className="text-xs text-muted">Scheduler: 9 AM IST</div>
+          <div className="text-xs text-muted" style={{ marginTop:4 }}>Resend: 100/day</div>
         </div>
       </div>
       <main className="main">{pages[page]}</main>
